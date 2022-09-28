@@ -1,5 +1,3 @@
-export const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@(.*?)\.cuny\.edu$/;
-
 /**
  * Returns a Promise that resolves after the given number of milliseconds.
  *

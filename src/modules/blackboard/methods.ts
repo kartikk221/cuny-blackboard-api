@@ -158,16 +158,13 @@ export async function get_all_user_courses(cookies: string): Promise<Course[]> {
 interface Announcement {
     id: string;
     title: string;
-    body: {
-        rawText: string;
-        displayText: string;
-        webLocation?: string;
-        fileLocation?: string;
-    };
+    body: string;
     created_at?: number;
     modified_at?: number;
-    start_at?: number;
-    end_at?: number;
+    locations: {
+        web?: string;
+        file?: string;
+    };
 }
 
 /**
@@ -194,17 +191,19 @@ export async function get_all_course_announcements(cookies: string, course_id: s
         // Loop through the results
         for (const result of results) {
             // Destructure the raw properties from the result
-            const { id, title, body, created, modified, startDate, endDate } = result;
+            const { id, title, body, startDateRestriction, createdDate, modifiedDate, endDateRestriction } = result;
 
             // Build and push the announcement
             announcements.push({
                 id,
                 title,
-                body,
-                created_at: new Date(created).getTime(),
-                modified_at: new Date(modified).getTime(),
-                start_at: new Date(startDate).getTime(),
-                end_at: new Date(endDate).getTime(),
+                body: body.displayText || body.rawText,
+                created_at: new Date(createdDate).getTime(),
+                modified_at: new Date(modifiedDate).getTime(),
+                locations: {
+                    web: body.webLocation,
+                    file: body.fileLocation,
+                },
             });
         }
     }
@@ -213,12 +212,12 @@ export async function get_all_course_announcements(cookies: string, course_id: s
     return announcements;
 }
 
-type Assignment = {
+interface Assignment {
     id: string;
     url: string;
     name: string;
     deadline: null | number;
-};
+}
 
 export async function get_all_course_assignments(course_id: string, cookies: string): Promise<Assignment[]> {
     // Make an API request to the courses endpoint
