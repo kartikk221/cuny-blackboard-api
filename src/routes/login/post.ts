@@ -5,10 +5,10 @@ import { EMAIL_REGEX } from '../../modules/utilities';
 
 export async function login_handler_post(request: Request, response: Response) {
     // Retrieve the username and password from the request body
-    const { username = '', password = '' } = (await request.json()) as { username: string; password: string };
+    const { username, password } = (await request.json()) as { username: string; password: string };
 
     // Ensure that the username is a string(delete this: username is always a string because its coming from the internet) email and not empty
-    if (!username || EMAIL_REGEX.test(username))
+    if (!username || !EMAIL_REGEX.test(username))
         return response.status(400).json({
             code: 'INVALID_CREDENTIALS',
             message: 'Please provide a valid email / username',
