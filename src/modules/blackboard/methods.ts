@@ -41,6 +41,9 @@ async function api_request(
         // Determine if the response returned a 401 Unauthorized
         if (response.status === 401) return new Error('BLACKBOARD_API_UNAUTHORIZED');
 
+        // Determine if the response returned a 404 Not Found
+        if (response.status === 404) return new Error('BLACKBOARD_API_NOT_FOUND');
+
         // Return the response to the caller
         return response;
     });
@@ -52,14 +55,20 @@ async function api_request(
     return output;
 }
 
-type ProfileResponse = {
+type User = {
     id: string;
     email: string;
     full_name: string;
     username: string;
 };
 
-export async function get_me_profile(cookies: string): Promise<ProfileResponse> {
+/**
+ * Retrieves the user profile from the Blackboard Learn REST API.
+ *
+ * @param cookies The cookies to use for the request
+ * @returns The user's profile
+ */
+export async function get_user_profile(cookies: string): Promise<User> {
     // Make an API request to the me profile endpoint
     const response = await api_request('v1.private', '/users/me', {
         redirect: 'error', // Don't follow redirects
@@ -78,4 +87,70 @@ export async function get_me_profile(cookies: string): Promise<ProfileResponse> 
         full_name: `${givenName} ${familyName}`,
         username: userName,
     };
+}
+
+type Course = {
+    id: string;
+    url: string;
+    name: string;
+    code: string;
+    description: null | string;
+    term: null | {
+        id: string;
+        name: string;
+    };
+    enrolled_at: number;
+    last_accessed_at: number;
+    last_modified_at: number;
+};
+
+/**
+ * Retrieves a user's courses from the Blackboard Learn REST API.
+ *
+ * @param cookies The cookies to use for the request
+ * @returns
+ */
+export async function get_all_user_courses(cookies: string): Promise<Course[]> {
+    // Make an API request to the courses endpoint
+    const response = await api_request('v1.private', `/users/me/memberships?expand=course`, {
+        redirect: 'error', // Don't follow redirects
+        headers: {
+            cookie: cookies,
+        },
+    });
+
+    // parse the paginated results from the response body
+    const { results } = await response.json();
+
+    // Parse the results into a list of courses
+    const courses: Course[] = [];
+    if (Array.isArray(results)) {
+        // Loop through the results
+        for (const result of results) {
+            // Destructure the raw properties from the result
+            const { enrollmentDate, lastAccessDate } = result;
+            const { id, term, courseId, name, displayName, description, homePageUrl, modifiedDate } = result.course;
+
+            // Build and push the course
+            courses.push({
+                id,
+                url: `${URL_BASE}${homePageUrl}`,
+                name: name || displayName,
+                code: courseId,
+                description: description || null,
+                term: term
+                    ? {
+                          id: term.id,
+                          name: term.name,
+                      }
+                    : null,
+                enrolled_at: new Date(enrollmentDate).getTime(),
+                last_accessed_at: new Date(lastAccessDate).getTime(),
+                last_modified_at: new Date(modifiedDate).getTime(),
+            });
+        }
+    }
+
+    // Return the courses
+    return courses;
 }
