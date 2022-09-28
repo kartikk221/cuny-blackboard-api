@@ -1,5 +1,7 @@
 import { Server } from 'hyper-express';
-import { login_handler_post } from './login/login';
+
+// Import login routes
+import { login_handler_post } from './login/post';
 
 /**
  * Binds API routes to the server instance.
