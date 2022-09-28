@@ -2,13 +2,9 @@ import 'dotenv/config';
 import webserver from './modules/webserver';
 import { log } from './modules/utilities';
 import { register_routes } from './routes';
-import { register_middlewares } from './middlewares';
 
 // Wrap the startup logic in an async function to allow for async/await
 (async () => {
-    // Register middlewares to the webserver
-    register_middlewares(webserver);
-
     // Register routes to the webserver
     register_routes(webserver);
 

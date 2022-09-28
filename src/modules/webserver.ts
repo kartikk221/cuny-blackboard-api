@@ -1,4 +1,5 @@
 import { Server } from 'hyper-express';
+import { not_found_handler, error_handler } from '../routes/handlers';
 
 // Create a new server instance with SSL parameters from environment variables
 const server = new Server({
@@ -8,24 +9,10 @@ const server = new Server({
 });
 
 // Bind a not found handler
-server.set_not_found_handler((_, response) =>
-    response.status(404).json({
-        code: 'NOT_FOUND',
-        message: 'The requested resource was not found on this server.',
-    })
-);
+server.set_not_found_handler(not_found_handler);
 
 // Bind an error handler
-server.set_error_handler((_, response, error) => {
-    // Log the error to the console
-    console.error(error);
-
-    // Send an error response
-    response.status(500).json({
-        code: 'SERVER_ERROR',
-        message: 'An unexpected error occurred on the server.',
-    });
-});
+server.set_error_handler(error_handler);
 
 // Export the server instance
 export default server;

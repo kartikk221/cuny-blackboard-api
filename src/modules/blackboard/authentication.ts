@@ -1,18 +1,20 @@
 import fetch from 'cross-fetch';
 import makeFetchCookie from 'fetch-cookie';
 
+// Define constants
 export const URL_BASE = 'https://bbhosted.cuny.edu';
 export const USER_AGENT =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36';
 const IMPORTANT_COOKIES = [
     'JSESSIONID',
-    'OAMAuthnHintCookie',
-    'BIGipServerbbhosted_https_pl',
-    'OAMAuthnCookie_bbhosted',
-    'web_client_cache_guid',
+    // 'OAMAuthnHintCookie',
+    // 'BIGipServerbbhosted_https_pl',
+    // 'OAMAuthnCookie_bbhosted',
+    // 'web_client_cache_guid',
     'BbRouter',
 ];
 
+// Workaround because tough-cookie doesn't have types
 interface Cookie {
     key: string;
     value: string;
