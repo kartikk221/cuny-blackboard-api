@@ -13,6 +13,9 @@ import { me_handler_get } from './me/get_me';
 import { courses_handler_get } from './courses/get_courses';
 import { assignments_handler_get } from './courses/assignments/get_assignments';
 
+// Import announcements routes
+import { announcements_handler_get } from './courses/announcements/announcements';
+
 /**
  * Binds API routes to the provided server instance.
  * @param webserver
@@ -36,4 +39,7 @@ export async function register_routes(webserver: Server) {
     // Bind courses routes
     webserver.get('/courses', use_require_token, courses_handler_get);
     webserver.get('/courses/:course_id/assignments', use_require_token, assignments_handler_get);
+
+    // Bind announcements routes under courses
+    webserver.get('/courses/:course_id/announcements', use_require_token, announcements_handler_get);
 }

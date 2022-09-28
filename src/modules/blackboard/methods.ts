@@ -2,7 +2,7 @@ import fetch from 'cross-fetch';
 import { URL_BASE } from './authentication';
 import { with_retries } from '../utilities';
 
-type api_version = 'v1.private' | 'v1.public' | 'v2.private' | 'v2.public';
+type api_version = 'v1.private' | 'v1.public';
 
 /**
  * Performs an API request to the Blackboard Learn REST API.
@@ -28,12 +28,6 @@ async function api_request(
             break;
         case 'v1.public':
             path = `/learn/api/public/v1${path}`;
-            break;
-        case 'v2.private':
-            path = `/learn/api/v2${path}`;
-            break;
-        case 'v2.public':
-            path = `/learn/api/public/v2${path}`;
             break;
         default:
             throw new Error(`Invalid API version: ${api}`);
@@ -61,12 +55,12 @@ async function api_request(
     return output;
 }
 
-type User = {
+interface User {
     id: string;
     email: string;
     full_name: string;
     username: string;
-};
+}
 
 /**
  * Retrieves the user profile from the Blackboard Learn REST API.
@@ -95,7 +89,7 @@ export async function get_user_profile(cookies: string): Promise<User> {
     };
 }
 
-type Course = {
+interface Course {
     id: string;
     url: string;
     name: string;
@@ -105,10 +99,10 @@ type Course = {
         id: string;
         name: string;
     };
-    enrolled_at: null | number;
-    last_accessed_at: null | number;
-    last_modified_at: null | number;
-};
+    enrolled_at: number;
+    last_accessed_at: number;
+    last_modified_at: number;
+}
 
 /**
  * Retrieves a user's courses from the Blackboard Learn REST API.
@@ -118,7 +112,7 @@ type Course = {
  */
 export async function get_all_user_courses(cookies: string): Promise<Course[]> {
     // Make an API request to the courses endpoint
-    const response = await api_request('v1.private', '/users/me/memberships?expand=course', {
+    const response = await api_request('v1.private', `/users/me/memberships?expand=course`, {
         redirect: 'error', // Don't follow redirects
         headers: {
             cookie: cookies,
@@ -133,7 +127,7 @@ export async function get_all_user_courses(cookies: string): Promise<Course[]> {
     if (Array.isArray(results)) {
         // Loop through the results
         for (const result of results) {
-            // Destructure the raw properties from each result
+            // Destructure the raw properties from the result
             const { enrollmentDate, lastAccessDate } = result;
             const { id, term, courseId, name, displayName, description, homePageUrl, modifiedDate } = result.course;
 
@@ -161,6 +155,64 @@ export async function get_all_user_courses(cookies: string): Promise<Course[]> {
     return courses;
 }
 
+interface Announcement {
+    id: string;
+    title: string;
+    body: {
+        rawText: string;
+        displayText: string;
+        webLocation?: string;
+        fileLocation?: string;
+    };
+    created_at?: number;
+    modified_at?: number;
+    start_at?: number;
+    end_at?: number;
+}
+
+/**
+ * Retrieves all announcements from a course from the Blackboard Learn REST API.
+ *
+ * @param cookies The cookies to use for the request
+ * @param course_id The ID of the course
+ */
+export async function get_all_course_announcements(cookies: string, course_id: string): Promise<Announcement[]> {
+    // Make an API request to the announcements endpoint
+    const response = await api_request('v1.private', `/courses/${course_id}/announcements`, {
+        redirect: 'error', // Don't follow redirects
+        headers: {
+            cookie: cookies,
+        },
+    });
+
+    // Parse the paginated results from the response body
+    const { results } = await response.json();
+
+    // Parse the results into a list of announcements
+    const announcements: Announcement[] = [];
+    if (Array.isArray(results)) {
+        // Loop through the results
+        for (const result of results) {
+            // Destructure the raw properties from the result
+            const { id, title, body, created, modified, startDate, endDate } = result;
+
+            // Build and push the announcement
+            announcements.push({
+                id,
+                title,
+                body,
+                created_at: new Date(created).getTime(),
+                modified_at: new Date(modified).getTime(),
+                start_at: new Date(startDate).getTime(),
+                end_at: new Date(endDate).getTime(),
+            });
+        }
+    }
+
+    // Return the announcements
+    return announcements;
+}
+
 type Assignment = {
     id: string;
     url: string;
@@ -170,7 +222,7 @@ type Assignment = {
 
 export async function get_all_course_assignments(course_id: string, cookies: string): Promise<Assignment[]> {
     // Make an API request to the courses endpoint
-    const response = await api_request('v2.public', `/courses/${course_id}/gradebook/columns`, {
+    const response = await api_request('v1.public', `/courses/${course_id}/gradebook/columns`, {
         redirect: 'error', // Don't follow redirects
         headers: {
             cookie: cookies,
