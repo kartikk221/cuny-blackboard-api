@@ -9,7 +9,7 @@ export function not_found_handler(_: Request, response: Response) {
 
 export function error_handler(_: Request, response: Response, error: Error) {
     // Handle the known blackboard api unauthorized error
-    if (error.name === 'BLACKBOARD_API_UNAUTHORIZED')
+    if (error.message === 'BLACKBOARD_API_NOT_FOUND')
         return response.status(401).json({
             code: 'INVALID_TOKEN',
             message: `The provided token is invalid or has expired.`,

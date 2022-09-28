@@ -4,13 +4,14 @@ import { Server } from 'hyper-express';
 import { use_require_token } from '../middlewares/require_token';
 
 // Import login routes
-import { login_handler_post } from './login/post';
+import { login_handler_post } from './login/post_login';
 
 // Import me routes
-import { me_handler_get } from '../routes/me/get';
+import { me_handler_get } from './me/get_me';
 
 // Import courses routes
-import { courses_handler_get } from './courses/get';
+import { courses_handler_get } from './courses/get_courses';
+import { assignments_handler_get } from './courses/assignments/get_assignments';
 
 /**
  * Binds API routes to the provided server instance.
@@ -34,4 +35,5 @@ export async function register_routes(webserver: Server) {
 
     // Bind courses routes
     webserver.get('/courses', use_require_token, courses_handler_get);
+    webserver.get('/courses/:course_id/assignments', use_require_token, assignments_handler_get);
 }
