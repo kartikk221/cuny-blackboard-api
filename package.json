@@ -16,8 +16,8 @@
         "typescript": "^4.8.3"
     },
     "dependencies": {
+        "cross-fetch": "^3.1.5",
         "fetch-cookie": "^2.1.0",
-        "hyper-express": "^6.4.10",
-        "ts-node": "^10.9.1"
+        "hyper-express": "^6.4.10"
     }
 }
