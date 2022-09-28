@@ -1,12 +1,18 @@
-import HyperExpress from 'hyper-express';
 import 'dotenv/config';
+import webserver from './modules/webserver';
+import { log } from './modules/utilities';
+import { register_routes } from './routes/index';
+import { register_middlewares } from './middlewares/index';
 
-const webserver = new HyperExpress.Server();
-const PORT = process.env.PORT;
-
-webserver.get('/', (req, res) => res.send('Hello World'));
-
+// Wrap the startup logic in an async function to allow for async/await
 (async () => {
-	await webserver.listen(Number(PORT));
-	console.log(`listening on port ${PORT}`);
+    // Register middlewares to the webserver
+    register_middlewares(webserver);
+
+    // Register routes to the webserver
+    register_routes(webserver);
+
+    // Start the webserver on environment port or 3000
+    await webserver.listen(Number(process.env['WEBSERVER_PORT']) || 3000);
+    log('WEBSERVER', `Successfully started webserver on port ${webserver.port}`);
 })();
