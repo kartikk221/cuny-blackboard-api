@@ -4,6 +4,14 @@ import makeFetchCookie from 'fetch-cookie';
 export const URL_BASE = 'https://bbhosted.cuny.edu';
 export const USER_AGENT =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36';
+const IMPORTANT_COOKIES = [
+    'JSESSIONID',
+    'OAMAuthnHintCookie',
+    'BIGipServerbbhosted_https_pl',
+    'OAMAuthnCookie_bbhosted',
+    'web_client_cache_guid',
+    'BbRouter',
+];
 
 interface Cookie {
     key: string;
@@ -48,10 +56,14 @@ export async function generate_session_cookies(username: string, password: strin
         // Retrieve the cookies from the cookie jar
         const cookies: Cookie[] = await jar.getCookies(URL_BASE, {
             allPaths: true,
+            hostOnly: false,
         });
 
         // Return the session cookies in header format
-        return cookies.map((cookie) => `${cookie.key}=${cookie.value}`).join('; ');
+        return cookies
+            .filter((cookie) => IMPORTANT_COOKIES.includes(cookie.key))
+            .map((cookie) => `${cookie.key}=${cookie.value}`)
+            .join('; ');
     }
 
     // Otherwise, authentication failed

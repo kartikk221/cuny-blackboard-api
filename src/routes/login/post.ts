@@ -1,3 +1,4 @@
+import zlib from 'zlib';
 import { Request, Response } from 'hyper-express';
 import { generate_session_cookies } from '../../modules/blackboard/authentication';
 import { EMAIL_REGEX } from '../../modules/utilities';
@@ -30,8 +31,14 @@ export async function login_handler_post(request: Request, response: Response) {
             message: 'Invalid username / email or password',
         });
 
-    // Otherwise, the credentials are valid
-    response.status(200).json({
-        cookies,
+    // Compress the cookies string
+    zlib.deflate(JSON.stringify(cookies), (error, buffer) => {
+        // If there was an error, throw it
+        if (error) throw error;
+
+        // Encode the buffer as a base64 string
+        response.status(200).json({
+            token: buffer.toString('base64'),
+        });
     });
 }
