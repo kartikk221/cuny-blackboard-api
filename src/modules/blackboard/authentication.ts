@@ -1,18 +1,7 @@
 import fetch from 'cross-fetch';
 import makeFetchCookie from 'fetch-cookie';
-
-// Define constants
-export const URL_BASE = 'https://bbhosted.cuny.edu';
-export const USER_AGENT =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36';
-const IMPORTANT_COOKIES = [
-    'JSESSIONID',
-    // 'OAMAuthnHintCookie',
-    // 'BIGipServerbbhosted_https_pl',
-    // 'OAMAuthnCookie_bbhosted',
-    // 'web_client_cache_guid',
-    'BbRouter',
-];
+import { api_request } from './methods';
+import { URL_BASE, USER_AGENT, SESSION_COOKIES } from './shared';
 
 // Workaround because tough-cookie doesn't have types
 interface Cookie {
@@ -63,11 +52,42 @@ export async function generate_session_cookies(username: string, password: strin
 
         // Return the session cookies in header format
         return cookies
-            .filter((cookie) => IMPORTANT_COOKIES.includes(cookie.key))
+            .filter((cookie) => SESSION_COOKIES.includes(cookie.key))
             .map((cookie) => `${cookie.key}=${cookie.value}`)
             .join('; ');
     }
 
     // Otherwise, authentication failed
     return null;
+}
+
+export async function refresh_session_cookies(cookies: string) {
+    // Break the cookies string into a store
+    const store = new Map<string, string>();
+    cookies.split(';').forEach((cookie) => {
+        const [key, value] = cookie.split('=');
+        store.set(key.trim(), value);
+    });
+    
+    // Make an API request to the me profile endpoint
+    const response = await api_request('v1.private', '/users/me', {
+        redirect: 'error', // Don't follow redirects
+        headers: {
+            cookie: cookies,
+        },
+    });
+
+    // Retrieve the incoming cookies
+    const incoming = response.headers.get('set-cookie');
+    if (incoming) {
+        // Break the cookies string into a store
+        incoming.split(', ').forEach((header) => {
+            const [cookie] = header.split('; ');
+            const [key, value] = cookie.split('=');
+            store.set(key.trim(), value);
+        });
+
+        // Return the session cookies in header format
+        return store;
+    }
 }

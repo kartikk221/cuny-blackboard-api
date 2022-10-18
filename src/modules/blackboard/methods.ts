@@ -1,5 +1,5 @@
 import fetch from 'cross-fetch';
-import { URL_BASE } from './authentication';
+import { URL_BASE } from './shared';
 import { with_retries } from '../utilities';
 
 type api_version = 'v1.private' | 'v1.public';
@@ -14,7 +14,7 @@ type api_version = 'v1.private' | 'v1.public';
  * @param delay The delay in milliseconds between retries
  * @returns
  */
-async function api_request(
+export async function api_request(
     api: api_version,
     path: string,
     options: RequestInit,
@@ -191,7 +191,7 @@ export async function get_all_course_announcements(cookies: string, course_id: s
         // Loop through the results
         for (const result of results) {
             // Destructure the raw properties from the result
-            const { id, title, body, startDateRestriction, createdDate, modifiedDate, endDateRestriction } = result;
+            const { id, title, body, createdDate, modifiedDate } = result;
 
             // Build and push the announcement
             announcements.push({

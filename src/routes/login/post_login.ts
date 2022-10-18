@@ -1,5 +1,5 @@
-import zlib from 'zlib';
 import { Request, Response } from 'hyper-express';
+import { cookies_to_token } from '../../middlewares/require_token';
 import { generate_session_cookies } from '../../modules/blackboard/authentication';
 
 export async function login_handler_post(request: Request, response: Response) {
@@ -30,14 +30,9 @@ export async function login_handler_post(request: Request, response: Response) {
             message: 'Invalid username / email or password',
         });
 
-    // Compress the cookies string
-    zlib.deflate(JSON.stringify(cookies), (error, buffer) => {
-        // If there was an error, throw it
-        if (error) throw error;
+    // Convert the cookies to a token
+    const token = await cookies_to_token(cookies);
 
-        // Encode the buffer as a base64 string
-        response.status(200).json({
-            token: buffer.toString('base64'),
-        });
-    });
+    // Send the token to the client
+    response.json({ token });
 }

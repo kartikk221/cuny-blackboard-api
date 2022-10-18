@@ -5,6 +5,7 @@ import { use_require_token } from '../middlewares/require_token';
 
 // Import login routes
 import { login_handler_post } from './login/post_login';
+import { refresh_handler_post } from './login/refresh/post_refresh';
 
 // Import me routes
 import { me_handler_get } from './me/get_me';
@@ -32,6 +33,7 @@ export async function register_routes(webserver: Server) {
 
     // Bind login routes
     webserver.post('/login', login_handler_post);
+    webserver.post('/login/refresh', use_require_token, refresh_handler_post);
 
     // Bind me routes
     webserver.get('/me', use_require_token, me_handler_get);
@@ -39,7 +41,5 @@ export async function register_routes(webserver: Server) {
     // Bind courses routes
     webserver.get('/courses', use_require_token, courses_handler_get);
     webserver.get('/courses/:course_id/assignments', use_require_token, assignments_handler_get);
-
-    // Bind announcements routes under courses
     webserver.get('/courses/:course_id/announcements', use_require_token, announcements_handler_get);
 }
