@@ -2,7 +2,7 @@ import fetch from 'cross-fetch';
 import { URL_BASE } from './shared';
 import { with_retries } from '../utilities';
 
-type api_version = 'v1.private' | 'v1.public';
+type api_version = 'v1.private' | 'v1.public' | 'v2.private' | 'v2.public';
 
 /**
  * Performs an API request to the Blackboard Learn REST API.
@@ -28,6 +28,12 @@ export async function api_request(
             break;
         case 'v1.public':
             path = `/learn/api/public/v1${path}`;
+            break;
+        case 'v2.private':
+            path = `/learn/api/v2${path}`;
+            break;
+        case 'v2.public':
+            path = `/learn/api/public/v2${path}`;
             break;
         default:
             throw new Error(`Invalid API version: ${api}`);
@@ -220,20 +226,28 @@ interface Assignment {
     grade: {
         score: null | number;
         possible: null | number;
-    }
+    };
 }
 
+/**
+ * Retrieves all assignments from a course from the Blackboard Learn REST API.
+ *
+ * @param course_id The ID of the course
+ * @param cookies The cookies to use for the request
+ * @returns The assignments in the course
+ */
 export async function get_all_course_assignments(course_id: string, cookies: string): Promise<Assignment[]> {
     // Retrieve both assignments and grades from gradebook endpoints
-    const responses = await Promise.all([
-        'columns',
-        'users/me',
-    ].map((type) => api_request('v1.public', `/courses/${course_id}/gradebook/${type}`, {
-        redirect: 'error', // Don't follow redirects
-        headers: {
-            cookie: cookies,
-        },
-    })));
+    const responses = await Promise.all(
+        ['columns', 'users/me'].map((type) =>
+            api_request('v2.public', `/courses/${course_id}/gradebook/${type}`, {
+                redirect: 'error', // Don't follow redirects
+                headers: {
+                    cookie: cookies,
+                },
+            })
+        )
+    );
 
     // Parse the results from both as JSON
     const [_assignments, _grades] = await Promise.all(responses.map((response) => response.json()));
@@ -242,29 +256,33 @@ export async function get_all_course_assignments(course_id: string, cookies: str
     const results: Assignment[] = [];
     if (Array.isArray(_assignments.results) && Array.isArray(_grades.results)) {
         // Parse the grades into a map identified by assignment id
-        const grades = new Map<string, string>();
-        // Do stuff here
-        
+        const grades = new Map<string, { scaleType: string; score: number; possible: number }>();
+        for (const grade of _grades.results) {
+            const { columnId, displayGrade } = grade;
+            if (displayGrade) grades.set(columnId, displayGrade);
+        }
+
         // Parse the assignment columns
         const assignments = _assignments.results;
         for (const assignment of assignments) {
             // Destructure the raw properties from each result
-            const { id, contentId, name, grading } = assignment;
-            const { due } = grading;
+            const { id, name, grading, score, contentId } = assignment;
 
-            // Build and push the assignments
-            // Only push assignments that have a content ID aka. are not a category
-            if (contentId)
-            results.push({
+            // Only parse results which have a content Id aka are an assignment
+            if (contentId) {
+                // Retrieve the grade for the assignment
+                const grade = grades.get(id) || { score: null, possible: null };
+                results.push({
                     id,
                     name,
                     url: `${URL_BASE}/webapps/assignment/uploadAssignment?content_id=${contentId}&course_id=${course_id}&mode=view`,
-                    deadline: new Date(due).getTime(),
+                    deadline: new Date(grading.due).getTime(),
                     grade: {
-                        score: null,
-                        possible: null,
+                        score: grade.score || null,
+                        possible: grade.possible || score.possible || null,
                     },
                 });
+            }
         }
     }
 

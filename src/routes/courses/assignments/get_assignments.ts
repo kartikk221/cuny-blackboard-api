@@ -1,5 +1,5 @@
 import { Request, Response } from 'hyper-express';
-import { get_all_course_assignments, get_course_assignment } from '../../../modules/blackboard/methods';
+import { get_all_course_assignments } from '../../../modules/blackboard/methods';
 
 export async function assignments_handler_get(request: Request, response: Response) {
     // Retrieve course id and cookies from the request
