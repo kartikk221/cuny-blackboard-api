@@ -1,6 +1,7 @@
 import fetch from 'cross-fetch';
-import { URL_BASE } from './shared';
 import { with_retries } from '../utilities';
+import * as HTMLParser from 'node-html-parser';
+import { URL_BASE, USER_AGENT, ERROR_CODES } from './shared';
 
 type api_version = 'v1.private' | 'v1.public' | 'v2.private' | 'v2.public';
 
@@ -41,14 +42,25 @@ export async function api_request(
 
     // Wrap the request in a retry function
     const output = await with_retries(retries, delay, async () => {
+        // Initialize the headers if they don't exist
+        if (!options.headers) options.headers = {};
+
+        // Merge defaults with the provided headers
+        options.headers = {
+            pragma: 'no-cache',
+            'cache-control': 'no-cache',
+            'content-type': 'application/json',
+            ...options.headers,
+        };
+
         // Make the fetch request
         const response = await fetch(`${URL_BASE}${path}`, options);
 
         // Determine if the response returned a 401 Unauthorized
-        if (response.status === 401) return new Error('BLACKBOARD_API_UNAUTHORIZED');
+        if (response.status === 401) return new Error(ERROR_CODES.UNAUTHORIZED);
 
         // Determine if the response returned a 404 Not Found
-        if (response.status === 404) return new Error('BLACKBOARD_API_NOT_FOUND');
+        if (response.status === 404) return new Error(ERROR_CODES.NOT_FOUND);
 
         // Return the response to the caller
         return response;
@@ -220,12 +232,16 @@ export async function get_all_course_announcements(cookies: string, course_id: s
 
 interface Assignment {
     id: string;
-    url: string;
+    url: null | string;
     name: string;
-    deadline: null | number;
+    status: string;
+    position: number;
+    updated_at: number;
+    deadline_at: number;
     grade: {
         score: null | number;
         possible: null | number;
+        feedback: null | string;
     };
 }
 
@@ -237,55 +253,142 @@ interface Assignment {
  * @returns The assignments in the course
  */
 export async function get_all_course_assignments(course_id: string, cookies: string): Promise<Assignment[]> {
-    // Retrieve both assignments and grades from gradebook endpoints
-    const responses = await Promise.all(
-        ['columns', 'users/me'].map((type) =>
-            api_request('v2.public', `/courses/${course_id}/gradebook/${type}`, {
-                redirect: 'error', // Don't follow redirects
-                headers: {
-                    cookie: cookies,
-                },
-            })
-        )
+    // Make a GET request to the Blackboard myGrades stream Viewer
+    // This is the best way to get the most data per assignment in a single request
+    // Note! This page can randomly fail to load, so we retry a few times
+    const response = await fetch(
+        `${URL_BASE}/webapps/bb-mygrades-bb_bb60/myGrades?course_id=${course_id}&stream_name=mygrades`,
+        {
+            redirect: 'manual', // Don't follow redirects
+            headers: {
+                cookie: cookies,
+                pragma: 'no-cache',
+                'cache-control': 'no-cache',
+                'user-agent': USER_AGENT,
+            },
+        }
     );
 
-    // Parse the results from both as JSON
-    const [_assignments, _grades] = await Promise.all(responses.map((response) => response.json()));
+    // If the response redirects to the login page, the cookies are invalid
+    if (response.status === 302) throw new Error(ERROR_CODES.UNAUTHORIZED);
 
-    // Parse the results into a list of assignments
-    const results: Assignment[] = [];
-    if (Array.isArray(_assignments.results) && Array.isArray(_grades.results)) {
-        // Parse the grades into a map identified by assignment id
-        const grades = new Map<string, { scaleType: string; score: number; possible: number }>();
-        for (const grade of _grades.results) {
-            const { columnId, displayGrade } = grade;
-            if (displayGrade) grades.set(columnId, displayGrade);
-        }
+    // Parse the HTML from the response body into a DOM
+    const body = await response.text();
 
-        // Parse the assignment columns
-        const assignments = _assignments.results;
-        for (const assignment of assignments) {
-            // Destructure the raw properties from each result
-            const { id, name, grading, score, contentId } = assignment;
+    // Safely parse the HTML into a set of assignments
+    const assignments: Assignment[] = [];
+    try {
+        // Parse the HTML into a DOM model
+        const html = HTMLParser.parse(body);
 
-            // Only parse results which have a content Id aka are an assignment
-            if (contentId) {
-                // Retrieve the grade for the assignment
-                const grade = grades.get(id) || { score: null, possible: null };
-                results.push({
+        // Iterate through all columns in the table
+        const columns = html.querySelectorAll('[duedate]');
+        for (const column of columns) {
+            // Retrieve various properties about each cell
+            const id = column.getAttribute('id');
+            const position = +(column.getAttribute('position') || 0);
+            const updated_at = +(column.getAttribute('lastactivity') || 0);
+            const deadline_at = +(column.getAttribute('duedate') || 0);
+            if (id && position && updated_at && deadline_at && deadline_at.toString().length <= 15) {
+                // Parse the column's cells to retrieve specific data
+                const cells = column.querySelectorAll('.cell');
+
+                // Parse the URL from the first cell
+                let url = null;
+                const link = cells[0].querySelector('a');
+                if (link) {
+                    // Use a default URL if the link parsing fails
+                    url = `${URL_BASE}/webapps/assignment/uploadAssignment?action=showHistory&course_id=${course_id}&outcome_definition_id=_${id}_1`;
+
+                    // Use the onclick attribute to parse the URL
+                    const onclick = link.getAttribute('onclick');
+                    if (onclick) {
+                        // Parse the raw URL
+                        const [_, raw] = onclick.split("'");
+                        if (raw) url = `${URL_BASE}${raw}`;
+                    }
+                }
+
+                // Parse the name of the assignment/type from the first cell
+                const [title, deadline_readable, type] = cells[0].innerText.split('\n').filter((c) => c.trim());
+                const name = `${title.trim()} (${(type || 'Resource').trim()})`;
+
+                // Parse the status of the assignment from the second cell
+                // Note! Upcoming assignments don't have a updated readable hence the OR operators
+                const [updated_readable, raw_status] = cells[1].innerText.split('\n').filter((c) => c.trim());
+                const status = (raw_status || updated_readable || 'UPCOMING').trim().toUpperCase();
+
+                // Parse the grade object from the third cell
+                const [score, possible] = cells[2].innerText
+                    .split('\n')
+                    .join('')
+                    .split('/')
+                    .filter((c) => c);
+                const grade = {
+                    score: isNaN(+score) ? null : +score,
+                    possible: isNaN(+possible) ? null : +possible,
+                };
+
+                // Parse the feedback from the third cell if we have a grade score
+                let feedback = null;
+                if (grade.score) {
+                    // Determine if the feedback popup button exists
+                    const button = cells[2].querySelector('a');
+                    if (button) {
+                        // Parse the feedback from the onclick attribute
+                        const onclick = button.getAttribute('onclick');
+                        if (onclick) {
+                            // Attempt to parse the onclick parameter string which contains HTML aka. the feedback
+                            const raw = onclick.split(',').filter((part) => part.includes('<div'))[0];
+                            if (raw) {
+                                // Split by the first closing of HTML tag
+                                const chunks = raw.split('>');
+
+                                // Remove the first chunk which is the HTML tag
+                                chunks.shift();
+
+                                // Split by the last closing of HTML tag
+                                const chunks2 = chunks.join('>').split('</');
+
+                                // Remove the last chunk which is the HTML tag
+                                chunks2.pop();
+
+                                // Stich the remaining chunks back together
+                                const stiched = chunks2.join('</').trim();
+
+                                // Remove unnecessary whitespaces and newlines
+                                feedback = stiched
+                                    .split('\\n')
+                                    .filter((c) => c.trim().length)
+                                    .join('\n')
+                                    .trim();
+                            }
+                        }
+                    }
+                }
+
+                // Build and push the assignment
+                assignments.push({
                     id,
+                    url,
                     name,
-                    url: `${URL_BASE}/webapps/assignment/uploadAssignment?content_id=${contentId}&course_id=${course_id}&mode=view`,
-                    deadline: new Date(grading.due).getTime(),
+                    status,
+                    position,
+                    updated_at,
+                    deadline_at,
                     grade: {
-                        score: grade.score || null,
-                        possible: grade.possible || score.possible || null,
+                        ...grade,
+                        feedback,
                     },
                 });
             }
         }
+
+        // Sort the assignments by their position
+        assignments.sort((a, b) => a.position - b.position);
+    } catch (error) {
+        throw new Error(ERROR_CODES.SERVER_ERROR);
     }
 
-    // Return the assignments
-    return results;
+    return assignments;
 }

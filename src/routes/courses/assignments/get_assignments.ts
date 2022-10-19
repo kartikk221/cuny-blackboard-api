@@ -1,3 +1,4 @@
+import { ERROR_CODES } from '../../../modules/blackboard/shared';
 import { Request, Response } from 'hyper-express';
 import { get_all_course_assignments } from '../../../modules/blackboard/methods';
 
@@ -6,24 +7,11 @@ export async function assignments_handler_get(request: Request, response: Respon
     const cookies: string = request.locals.cookies;
     const course_id = request.path_parameters['course_id'];
 
+    // Throw an error if the course id is invalid
+    if (!course_id) throw new Error(ERROR_CODES.NOT_FOUND);
+
     // Retrieve the course's assignments
-    let assignments;
-    try {
-        // Throw an error if the course id is invalid
-        if (!course_id) throw new Error('BLACKBOARD_API_NOT_FOUND');
-
-        // Retrieve the course's assignments
-        assignments = await get_all_course_assignments(course_id, cookies);
-    } catch (error: any) {
-        if (error.message === 'BLACKBOARD_API_NOT_FOUND')
-            return response.status(404).json({
-                code: 'NOT_FOUND',
-                message: 'The course id you provided does not exist',
-            });
-
-        // If the error is not a 404, throw it
-        throw error;
-    }
+    const assignments = await get_all_course_assignments(course_id, cookies);
 
     // Return the assignments
     return response.json(assignments);
