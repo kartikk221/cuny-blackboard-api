@@ -217,43 +217,57 @@ interface Assignment {
     url: string;
     name: string;
     deadline: null | number;
+    grade: {
+        score: null | number;
+        possible: null | number;
+    }
 }
 
 export async function get_all_course_assignments(course_id: string, cookies: string): Promise<Assignment[]> {
-    // Make an API request to the courses endpoint
-    const response = await api_request('v1.public', `/courses/${course_id}/gradebook/columns`, {
+    // Retrieve both assignments and grades from gradebook endpoints
+    const responses = await Promise.all([
+        'columns',
+        'users/me',
+    ].map((type) => api_request('v1.public', `/courses/${course_id}/gradebook/${type}`, {
         redirect: 'error', // Don't follow redirects
         headers: {
             cookie: cookies,
         },
-    });
+    })));
 
-    // parse the paginated results from the response body
-    const { results } = await response.json();
+    // Parse the results from both as JSON
+    const [_assignments, _grades] = await Promise.all(responses.map((response) => response.json()));
 
     // Parse the results into a list of assignments
-    const assignments: Assignment[] = [];
-    if (Array.isArray(results)) {
-        // Loop through the results
-        for (const result of results) {
+    const results: Assignment[] = [];
+    if (Array.isArray(_assignments.results) && Array.isArray(_grades.results)) {
+        // Parse the grades into a map identified by assignment id
+        const grades = new Map<string, string>();
+        // Do stuff here
+        
+        // Parse the assignment columns
+        const assignments = _assignments.results;
+        for (const assignment of assignments) {
             // Destructure the raw properties from each result
-            const { id, contentId, name, grading } = result;
+            const { id, contentId, name, grading } = assignment;
             const { due } = grading;
 
             // Build and push the assignments
             // Only push assignments that have a content ID aka. are not a category
             if (contentId)
-                assignments.push({
+            results.push({
                     id,
                     name,
                     url: `${URL_BASE}/webapps/assignment/uploadAssignment?content_id=${contentId}&course_id=${course_id}&mode=view`,
                     deadline: new Date(due).getTime(),
+                    grade: {
+                        score: null,
+                        possible: null,
+                    },
                 });
         }
     }
 
-    // Return the courses
-    return assignments;
+    // Return the assignments
+    return results;
 }
-
-export async function get_course_assignment(course_id: string, assignment_id: string, cookies: string): Promise<void> {}
