@@ -1,7 +1,7 @@
 import fetch from 'cross-fetch';
 import makeFetchCookie from 'fetch-cookie';
 import { api_request } from './methods';
-import { URL_BASE, USER_AGENT, SESSION_COOKIES } from './shared';
+import { URL_BASE, USER_AGENT, SESSION_COOKIES, ERROR_CODES } from './shared';
 
 // Workaround because tough-cookie doesn't have types
 interface Cookie {
@@ -65,33 +65,62 @@ export async function generate_session_cookies(
 
 export async function refresh_session_cookies(cookies: string) {
     // Break the cookies string into a store
+    // Retrieve the xsrf token from the BbRouter cookie
+    let xsrf;
     const store = new Map<string, string>();
     cookies.split(';').forEach((cookie) => {
+        // Split the cookie into a key and value pair
         const [key, value] = cookie.split('=');
         store.set(key.trim(), value);
+
+        // If the cookie is the BbRouter cookie, extract the xsrf token
+        if (key.trim().toLowerCase() === 'bbrouter')
+            value.split(',').forEach((pair) => {
+                const [key, value] = pair.split(':');
+                const name = key.trim();
+                if (name === 'xsrf') xsrf = value.trim();
+            });
     });
 
-    // Make an API request to the me profile endpoint
-    const response = await api_request('v1.private', '/users/me', {
-        redirect: 'error', // Don't follow redirects
-        headers: {
-            cookie: cookies,
-        },
+    // If we do not have an xsrf token, we cannot refresh the session cookies aka. bad cookies
+    if (!xsrf) throw new Error(ERROR_CODES.UNAUTHORIZED);
+
+    // Request 1: GET request to the ME endpoint which renews the BBRouter cookie
+    // Request 2: POST request to the keepBbSessionActive utility which renews the JSESSIONID cookie
+    const responses = await Promise.all([
+        api_request('v1.private', '/users/me', {
+            redirect: 'error', // Don't follow redirects
+            headers: {
+                cookie: cookies,
+            },
+        }),
+        api_request('v1.private', '/utilities/keepBbSessionActive', {
+            redirect: 'error', // Don't follow redirects
+            headers: {
+                cookie: cookies,
+                'X-Blackboard-XSRF': xsrf,
+            },
+        }),
+    ]);
+
+    // Merge incoming cookies from both responses
+    const valid = responses.filter(({ headers }) => {
+        const incoming = headers.get('set-cookie');
+        if (incoming) {
+            // Break the cookies string into a store
+            incoming.split(', ').forEach((header) => {
+                const [cookie] = header.split('; ');
+                const [key, value] = cookie.split('=');
+                store.set(key.trim(), value);
+            });
+
+            // Return the session cookies in header format
+            return store;
+        }
     });
 
-    // Retrieve the incoming cookies
-    const incoming = response.headers.get('set-cookie');
-    if (incoming) {
-        // Break the cookies string into a store
-        incoming.split(', ').forEach((header) => {
-            const [cookie] = header.split('; ');
-            const [key, value] = cookie.split('=');
-            store.set(key.trim(), value);
-        });
-
-        // Return the session cookies in header format
-        return store;
-    }
+    // If we have valid cookies from both responses, refresh was successful
+    if (valid.length === responses.length) return store;
 }
 
 /**
