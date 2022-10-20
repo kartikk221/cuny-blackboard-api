@@ -1,6 +1,6 @@
 import { Request, Response } from 'hyper-express';
-import { cookies_to_token } from '../../../middlewares/require_token';
-import { refresh_session_cookies } from '../../../modules/blackboard/authentication';
+import { cookies_to_token } from '../../../modules/blackboard/token';
+import { get_cookies_life_details, refresh_session_cookies } from '../../../modules/blackboard/authentication';
 
 export async function refresh_handler_post(request: Request, response: Response) {
     // Retrieve the cookies from the request
@@ -9,42 +9,19 @@ export async function refresh_handler_post(request: Request, response: Response)
     // Attempt to refresh the session cookies
     const refreshed = await refresh_session_cookies(current);
     if (refreshed) {
-        // Find the BbRouter cookie from the refreshed cookies
-        let bb_router;
-        for (const name of refreshed.keys()) {
-            if (name.toLowerCase() === 'bbrouter') {
-                bb_router = refreshed.get(name);
-                break;
-            }
-        }
+        // Retrieve lifetime details about the cookies
+        const lifetime = get_cookies_life_details(refreshed);
 
-        if (bb_router) {
-            // Retrieve the properties of the bb router cookie
-            const properties = {} as { [key: string]: string };
-            bb_router.split(',').forEach((property) => {
-                const [key, value] = property.trim().split(':');
-                properties[key] = value;
-            });
+        // Convert the refreshed cookies into a header
+        const header = Array.from(refreshed.entries())
+            .map(([name, value]) => `${name}=${value}`)
+            .join('; ');
 
-            // Destructure relevant properties to determine expiry and age
-            const { expires, timeout } = properties;
-            if (expires && timeout) {
-                // Convert the second based values to milliseconds
-                const age = +timeout * 1000;
-                const expires_at = +expires * 1000;
+        // Convert the cookies header to a token
+        const token = await cookies_to_token(header);
 
-                // Convert the cookies into header format
-                const cookies = Array.from(refreshed.entries())
-                    .map(([name, value]) => `${name}=${value}`)
-                    .join('; ');
-
-                // Convert the cookies into a token
-                const token = await cookies_to_token(cookies);
-
-                // Send the token to the client
-                return response.json({ token, age, expires_at });
-            }
-        }
+        // Send the token to the client along with the lifetime details
+        response.json({ token, ...lifetime });
     }
 
     // If this point is reached, the refresh failed

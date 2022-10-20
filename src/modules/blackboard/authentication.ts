@@ -14,9 +14,12 @@ interface Cookie {
  *
  * @param username CUNYfirst username
  * @param password CUNYfirst password
- * @returns Resolves a `string` if successful, returns `null` if credentials are invalid.
+ * @returns Resolves a `Map` if successful, returns `null` if credentials are invalid.
  */
-export async function generate_session_cookies(username: string, password: string): Promise<string | null> {
+export async function generate_session_cookies(
+    username: string,
+    password: string
+): Promise<Map<string, string> | null> {
     // Create a fetch instance with cookie support
     const jar = new makeFetchCookie.toughCookie.CookieJar();
     const fetch_with_cookies = makeFetchCookie(fetch, jar);
@@ -50,11 +53,10 @@ export async function generate_session_cookies(username: string, password: strin
             hostOnly: false,
         });
 
-        // Return the session cookies in header format
-        return cookies
-            .filter((cookie) => SESSION_COOKIES.includes(cookie.key))
-            .map((cookie) => `${cookie.key}=${cookie.value}`)
-            .join('; ');
+        // Convert the cookies into a map store
+        const store = new Map<string, string>();
+        for (const cookie of cookies) store.set(cookie.key, cookie.value);
+        return store;
     }
 
     // Otherwise, authentication failed
@@ -68,7 +70,7 @@ export async function refresh_session_cookies(cookies: string) {
         const [key, value] = cookie.split('=');
         store.set(key.trim(), value);
     });
-    
+
     // Make an API request to the me profile endpoint
     const response = await api_request('v1.private', '/users/me', {
         redirect: 'error', // Don't follow redirects
@@ -89,5 +91,42 @@ export async function refresh_session_cookies(cookies: string) {
 
         // Return the session cookies in header format
         return store;
+    }
+}
+
+/**
+ * Returns lifetime details about the provided session cookies.
+ *
+ * @param cookies The store of cookies
+ * @returns Cookie lifetime details in milliseconds.
+ */
+export function get_cookies_life_details(cookies: Map<string, string>) {
+    // Find the BbRouter cookie from the refreshed cookies
+    let bb_router;
+    for (const name of cookies.keys()) {
+        if (name.toLowerCase() === 'bbrouter') {
+            bb_router = cookies.get(name);
+            break;
+        }
+    }
+
+    if (bb_router) {
+        // Retrieve the properties of the bb router cookie
+        const properties = {} as { [key: string]: string };
+        bb_router.split(',').forEach((property) => {
+            const [key, value] = property.trim().split(':');
+            properties[key] = value;
+        });
+
+        // Destructure relevant properties to determine expiry and age
+        const { expires, timeout } = properties;
+        if (expires && timeout) {
+            // Convert the second based values to milliseconds
+            const age = +timeout * 1000;
+            const expires_at = +expires * 1000;
+
+            // Send the token to the client
+            return { age, expires_at };
+        }
     }
 }

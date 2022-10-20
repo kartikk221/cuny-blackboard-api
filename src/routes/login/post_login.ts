@@ -1,6 +1,6 @@
 import { Request, Response } from 'hyper-express';
-import { cookies_to_token } from '../../middlewares/require_token';
-import { generate_session_cookies } from '../../modules/blackboard/authentication';
+import { cookies_to_token } from '../../modules/blackboard/token';
+import { generate_session_cookies, get_cookies_life_details } from '../../modules/blackboard/authentication';
 
 export async function login_handler_post(request: Request, response: Response) {
     // Retrieve the username and password from the request body
@@ -30,9 +30,17 @@ export async function login_handler_post(request: Request, response: Response) {
             message: 'Invalid username / email or password',
         });
 
-    // Convert the cookies to a token
-    const token = await cookies_to_token(cookies);
+    // Retrieve lifetime details about the cookies
+    const lifetime = get_cookies_life_details(cookies);
+
+    // Convert the cookies into header format
+    const header = Array.from(cookies.entries())
+        .map(([name, value]) => `${name}=${value}`)
+        .join('; ');
+
+    // Convert the cookies header to a token
+    const token = await cookies_to_token(header);
 
     // Send the token to the client
-    response.json({ token });
+    response.json({ token, ...lifetime });
 }
