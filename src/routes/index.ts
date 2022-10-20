@@ -5,6 +5,7 @@ import { use_require_token } from '../middlewares/require_token';
 
 // Import login routes
 import { login_handler_post } from './login/post_login';
+import { cookies_handler_get } from './login/cookies/get_cookies';
 import { refresh_handler_post } from './login/refresh/post_refresh';
 
 // Import me routes
@@ -23,16 +24,17 @@ import { announcements_handler_get } from './courses/announcements/announcements
  */
 export async function register_routes(webserver: Server) {
     // Bind a global OPTIONS handler to allow for CORS
-    webserver.options('*', (_, response) =>
+    webserver.options('*', (_, response) => {
         response
             .header('Access-Control-Allow-Origin', '*')
             .header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
             .header('Access-Control-Allow-Headers', 'Authorization')
-            .send()
-    );
+            .send();
+    });
 
     // Bind login routes
     webserver.post('/login', login_handler_post);
+    webserver.get('/login/cookies', use_require_token, cookies_handler_get);
     webserver.post('/login/refresh', use_require_token, refresh_handler_post);
 
     // Bind me routes
