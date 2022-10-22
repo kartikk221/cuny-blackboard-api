@@ -13,11 +13,12 @@
         "@types/node": "^18.7.23",
         "dotenv": "^16.0.2",
         "nodemon": "^2.0.20",
-        "typescript": "^4.8.3"
+        "typescript": "^4.8.4"
     },
     "dependencies": {
         "cross-fetch": "^3.1.5",
         "fetch-cookie": "^2.1.0",
-        "hyper-express": "^6.4.10"
+        "hyper-express": "^6.5.0",
+        "node-html-parser": "^6.1.1"
     }
 }

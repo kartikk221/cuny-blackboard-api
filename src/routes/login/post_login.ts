@@ -1,6 +1,6 @@
-import zlib from 'zlib';
 import { Request, Response } from 'hyper-express';
-import { generate_session_cookies } from '../../modules/blackboard/authentication';
+import { cookies_to_token } from '../../modules/blackboard/token';
+import { generate_session_cookies, get_cookies_life_details } from '../../modules/blackboard/authentication';
 
 export async function login_handler_post(request: Request, response: Response) {
     // Retrieve the username and password from the request body
@@ -30,14 +30,17 @@ export async function login_handler_post(request: Request, response: Response) {
             message: 'Invalid username / email or password',
         });
 
-    // Compress the cookies string
-    zlib.deflate(JSON.stringify(cookies), (error, buffer) => {
-        // If there was an error, throw it
-        if (error) throw error;
+    // Retrieve lifetime details about the cookies
+    const lifetime = get_cookies_life_details(cookies);
 
-        // Encode the buffer as a base64 string
-        response.status(200).json({
-            token: buffer.toString('base64'),
-        });
-    });
+    // Convert the cookies into header format
+    const header = Array.from(cookies.entries())
+        .map(([name, value]) => `${name}=${value}`)
+        .join('; ');
+
+    // Convert the cookies header to a token
+    const token = await cookies_to_token(header);
+
+    // Send the token to the client
+    response.json({ token, ...lifetime });
 }

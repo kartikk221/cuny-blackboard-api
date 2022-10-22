@@ -1,18 +1,7 @@
 import fetch from 'cross-fetch';
 import makeFetchCookie from 'fetch-cookie';
-
-// Define constants
-export const URL_BASE = 'https://bbhosted.cuny.edu';
-export const USER_AGENT =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36';
-const IMPORTANT_COOKIES = [
-    'JSESSIONID',
-    // 'OAMAuthnHintCookie',
-    // 'BIGipServerbbhosted_https_pl',
-    // 'OAMAuthnCookie_bbhosted',
-    // 'web_client_cache_guid',
-    'BbRouter',
-];
+import { api_request } from './methods';
+import { URL_BASE, USER_AGENT, SESSION_COOKIES, ERROR_CODES } from './shared';
 
 // Workaround because tough-cookie doesn't have types
 interface Cookie {
@@ -25,9 +14,12 @@ interface Cookie {
  *
  * @param username CUNYfirst username
  * @param password CUNYfirst password
- * @returns Resolves a `string` if successful, returns `null` if credentials are invalid.
+ * @returns Resolves a `Map` if successful, returns `null` if credentials are invalid.
  */
-export async function generate_session_cookies(username: string, password: string): Promise<string | null> {
+export async function generate_session_cookies(
+    username: string,
+    password: string
+): Promise<Map<string, string> | null> {
     // Create a fetch instance with cookie support
     const jar = new makeFetchCookie.toughCookie.CookieJar();
     const fetch_with_cookies = makeFetchCookie(fetch, jar);
@@ -61,13 +53,107 @@ export async function generate_session_cookies(username: string, password: strin
             hostOnly: false,
         });
 
-        // Return the session cookies in header format
-        return cookies
-            .filter((cookie) => IMPORTANT_COOKIES.includes(cookie.key))
-            .map((cookie) => `${cookie.key}=${cookie.value}`)
-            .join('; ');
+        // Convert the cookies into a map store
+        const store = new Map<string, string>();
+        for (const cookie of cookies) store.set(cookie.key, cookie.value);
+        return store;
     }
 
     // Otherwise, authentication failed
     return null;
+}
+
+export async function refresh_session_cookies(cookies: string) {
+    // Break the cookies string into a store
+    // Retrieve the xsrf token from the BbRouter cookie
+    let xsrf;
+    const store = new Map<string, string>();
+    cookies.split(';').forEach((cookie) => {
+        // Split the cookie into a key and value pair
+        const [key, value] = cookie.split('=');
+        store.set(key.trim(), value);
+
+        // If the cookie is the BbRouter cookie, extract the xsrf token
+        if (key.trim().toLowerCase() === 'bbrouter')
+            value.split(',').forEach((pair) => {
+                const [key, value] = pair.split(':');
+                const name = key.trim();
+                if (name === 'xsrf') xsrf = value.trim();
+            });
+    });
+
+    // If we do not have an xsrf token, we cannot refresh the session cookies aka. bad cookies
+    if (!xsrf) throw new Error(ERROR_CODES.UNAUTHORIZED);
+
+    // Make request to refresh the endpoint
+    const response = await api_request('v1.private', '/utilities/timeUntilBbSessionInactive', {
+        method: 'GET',
+        redirect: 'error', // Don't follow redirects
+        headers: {
+            cookie: cookies,
+            'X-Blackboard-XSRF': xsrf,
+        },
+    });
+
+    // Ensure the response also delivers empty JSON as expected
+    let body;
+    try {
+        body = (await response.json()) as { [key: string]: number };
+    } catch (error) {
+        throw new Error(ERROR_CODES.SERVER_ERROR);
+    }
+
+    // Parse the incoming set-cookie header
+    const incoming = response.headers.get('set-cookie');
+    if (incoming) {
+        // Break the cookies string into a store
+        incoming.split(', ').forEach((header) => {
+            const [cookie] = header.split('; ');
+            const [key, value] = cookie.split('=');
+            store.set(key.trim(), value);
+        });
+
+        // Return the session cookies in header format
+        return {
+            store,
+            expires_at: body.timeBeforeTimeout,
+        };
+    }
+}
+
+/**
+ * Returns lifetime details about the provided session cookies.
+ *
+ * @param cookies The store of cookies
+ * @returns Cookie lifetime details in milliseconds.
+ */
+export function get_cookies_life_details(cookies: Map<string, string>) {
+    // Find the BbRouter cookie from the refreshed cookies
+    let bb_router;
+    for (const name of cookies.keys()) {
+        if (name.toLowerCase() === 'bbrouter') {
+            bb_router = cookies.get(name);
+            break;
+        }
+    }
+
+    if (bb_router) {
+        // Retrieve the properties of the bb router cookie
+        const properties = {} as { [key: string]: string };
+        bb_router.split(',').forEach((property) => {
+            const [key, value] = property.trim().split(':');
+            properties[key] = value;
+        });
+
+        // Destructure relevant properties to determine expiry and age
+        const { expires, timeout } = properties;
+        if (expires && timeout) {
+            // Convert the second based values to milliseconds
+            const age = +timeout * 1000;
+            const expires_at = +expires * 1000;
+
+            // Send the token to the client
+            return { age, expires_at };
+        }
+    }
 }
