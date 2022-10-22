@@ -38,6 +38,7 @@ export async function register_routes(webserver: Server) {
 
     // Bind courses routes
     webserver.get('/courses', use_require_token, courses_handler_get);
+    // webserver.get('/courses/:course_id', use_require_token);
     webserver.get('/courses/:course_id/assignments', use_require_token, assignments_handler_get);
 
     // Bind announcements routes under courses
