@@ -85,42 +85,40 @@ export async function refresh_session_cookies(cookies: string) {
     // If we do not have an xsrf token, we cannot refresh the session cookies aka. bad cookies
     if (!xsrf) throw new Error(ERROR_CODES.UNAUTHORIZED);
 
-    // Request 1: GET request to the ME endpoint which renews the BBRouter cookie
-    // Request 2: POST request to the keepBbSessionActive utility which renews the JSESSIONID cookie
-    const responses = await Promise.all([
-        api_request('v1.private', '/users/me', {
-            redirect: 'error', // Don't follow redirects
-            headers: {
-                cookie: cookies,
-            },
-        }),
-        api_request('v1.private', '/utilities/keepBbSessionActive', {
-            redirect: 'error', // Don't follow redirects
-            headers: {
-                cookie: cookies,
-                'X-Blackboard-XSRF': xsrf,
-            },
-        }),
-    ]);
-
-    // Merge incoming cookies from both responses
-    const valid = responses.filter(({ headers }) => {
-        const incoming = headers.get('set-cookie');
-        if (incoming) {
-            // Break the cookies string into a store
-            incoming.split(', ').forEach((header) => {
-                const [cookie] = header.split('; ');
-                const [key, value] = cookie.split('=');
-                store.set(key.trim(), value);
-            });
-
-            // Return the session cookies in header format
-            return store;
-        }
+    // Make request to refresh the endpoint
+    const response = await api_request('v1.private', '/utilities/timeUntilBbSessionInactive', {
+        method: 'GET',
+        redirect: 'error', // Don't follow redirects
+        headers: {
+            cookie: cookies,
+            'X-Blackboard-XSRF': xsrf,
+        },
     });
 
-    // If we have valid cookies from both responses, refresh was successful
-    if (valid.length === responses.length) return store;
+    // Ensure the response also delivers empty JSON as expected
+    let body;
+    try {
+        body = (await response.json()) as { [key: string]: number };
+    } catch (error) {
+        throw new Error(ERROR_CODES.SERVER_ERROR);
+    }
+
+    // Parse the incoming set-cookie header
+    const incoming = response.headers.get('set-cookie');
+    if (incoming) {
+        // Break the cookies string into a store
+        incoming.split(', ').forEach((header) => {
+            const [cookie] = header.split('; ');
+            const [key, value] = cookie.split('=');
+            store.set(key.trim(), value);
+        });
+
+        // Return the session cookies in header format
+        return {
+            store,
+            expires_at: body.timeBeforeTimeout,
+        };
+    }
 }
 
 /**

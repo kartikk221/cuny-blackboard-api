@@ -9,19 +9,25 @@ export async function refresh_handler_post(request: Request, response: Response)
     // Attempt to refresh the session cookies
     const refreshed = await refresh_session_cookies(current);
     if (refreshed) {
+        const { store, expires_at } = refreshed;
+
         // Retrieve lifetime details about the cookies
-        const lifetime = get_cookies_life_details(refreshed);
+        const lifetime = get_cookies_life_details(store);
+        if (lifetime) {
+            // Convert the refreshed cookies into a header
+            const header = Array.from(store.entries())
+                .map(([name, value]) => `${name}=${value}`)
+                .join('; ');
 
-        // Convert the refreshed cookies into a header
-        const header = Array.from(refreshed.entries())
-            .map(([name, value]) => `${name}=${value}`)
-            .join('; ');
+            // Convert the cookies header to a token
+            const token = await cookies_to_token(header);
 
-        // Convert the cookies header to a token
-        const token = await cookies_to_token(header);
+            // Use the smallest lifetime value
+            lifetime.expires_at = Math.min(lifetime.expires_at, Date.now() + expires_at);
 
-        // Send the token to the client along with the lifetime details
-        response.json({ token, ...lifetime });
+            // Send the token to the client along with the lifetime details
+            response.json({ token, ...lifetime });
+        }
     }
 
     // If this point is reached, the refresh failed
