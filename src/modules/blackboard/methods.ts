@@ -1,7 +1,7 @@
 import fetch from 'cross-fetch';
 import { with_retries } from '../utilities';
 import * as HTMLParser from 'node-html-parser';
-import { URL_BASE, USER_AGENT, ERROR_CODES } from './shared';
+import { URL_BASE, USER_AGENT, ERROR_CODES, construct_assignment_id, deconstruct_assignment_id } from './shared';
 
 type api_version = 'v1.private' | 'v1.public' | 'v2.private' | 'v2.public';
 
@@ -16,7 +16,7 @@ type api_version = 'v1.private' | 'v1.public' | 'v2.private' | 'v2.public';
  * @returns
  */
 export async function api_request(
-    api: api_version,
+    api: api_version | string,
     path: string,
     options: RequestInit,
     retries = 3,
@@ -36,8 +36,6 @@ export async function api_request(
         case 'v2.public':
             path = `/learn/api/public/v2${path}`;
             break;
-        default:
-            throw new Error(`Invalid API version: ${api}`);
     }
 
     // Wrap the request in a retry function
@@ -230,11 +228,11 @@ export async function get_all_course_announcements(cookies: string, course_id: s
     return announcements;
 }
 
-interface Assignment {
+interface SimpleAssignment {
     id: string;
-    url: null | string;
     name: string;
-    deadline: null | number;
+    category: string;
+    deadline_at: number;
     grade: {
         score: null | number;
         possible: null | number;
@@ -248,11 +246,17 @@ interface Assignment {
  * @param cookies The cookies to use for the request
  * @returns The assignments in the course
  */
-export async function get_all_course_assignments(course_id: string, cookies: string): Promise<Assignment[]> {
-    // Retrieve both assignments and grades from gradebook endpoints
+export async function get_all_course_assignments(course_id: string, cookies: string): Promise<SimpleAssignment[]> {
+    // Request 1: Get the course's gradebook categories
+    // Request 2: Get the course's gradebook columns aka. assignments
+    // Request 3: Get the course's gradebook grades for self (the user)
     const responses = await Promise.all(
-        ['columns', 'users/me'].map((type) =>
-            api_request('v2.public', `/courses/${course_id}/gradebook/${type}`, {
+        [
+            ['v1.public', 'categories'],
+            ['v2.public', 'columns'],
+            ['v2.public', 'users/me'],
+        ].map(([api, path]) =>
+            api_request(api as api_version, `/courses/${course_id}/gradebook/${path}`, {
                 redirect: 'error', // Don't follow redirects
                 headers: {
                     cookie: cookies,
@@ -261,12 +265,19 @@ export async function get_all_course_assignments(course_id: string, cookies: str
         )
     );
 
-    // Parse the results from both as JSON
-    const [_assignments, _grades] = await Promise.all(responses.map((response) => response.json()));
+    // Parse the results from the responses as JSON
+    const [_categories, _assignments, _grades] = await Promise.all(responses.map((response) => response.json()));
 
     // Parse the results into a list of assignments
-    const results: Assignment[] = [];
-    if (Array.isArray(_assignments.results) && Array.isArray(_grades.results)) {
+    const results: SimpleAssignment[] = [];
+    if ([_categories, _assignments, _grades].every((result) => Array.isArray(result.results))) {
+        // Parse the categories into a map of category IDs to category names
+        const categories = new Map<string, string>();
+        for (const category of _categories.results) {
+            const { id, title } = category;
+            categories.set(id, title);
+        }
+
         // Parse the grades into a map identified by assignment id
         const grades = new Map<string, { scaleType: string; score: number; possible: number }>();
         for (const grade of _grades.results) {
@@ -277,24 +288,24 @@ export async function get_all_course_assignments(course_id: string, cookies: str
         // Parse the assignment columns
         const assignments = _assignments.results;
         for (const assignment of assignments) {
-            // Destructure the raw properties from each result
-            const { id, name, grading, score, scoreProviderHandle, contentId } = assignment;
+            // Destructure the raw properties from the assignment
+            const { id, name, grading, score, contentId, externalToolId, gradebookCategoryId = '' } = assignment;
 
-            // Only parse results which have a content Id aka are an assignment
-            if (contentId) {
-                // Retrieve the grade for the assignment
-                const grade = grades.get(id) || { score: null, possible: null };
+            // Map the assignment to a category and determine an absolute assignment content ID
+            const gradeId = id;
+            const absoluteId = externalToolId || contentId;
+            const category = categories.get(gradebookCategoryId);
+            if (category && absoluteId) {
+                // Retrieve the associated grade for the assignment
+                const grade = grades.get(gradeId);
                 results.push({
-                    id,
+                    id: construct_assignment_id(absoluteId, gradeId),
                     name,
-                    url:
-                        contentId && scoreProviderHandle === 'resource/x-bb-assignment'
-                            ? `${URL_BASE}/webapps/assignment/uploadAssignment?content_id=${contentId}&course_id=${course_id}&mode=view`
-                            : null,
-                    deadline: new Date(grading.due).getTime(),
+                    category,
+                    deadline_at: new Date(grading.due).getTime(),
                     grade: {
-                        score: grade.score || null,
-                        possible: grade.possible || (score.possible ? score.possible : null),
+                        score: typeof grade?.score == 'number' ? grade?.score : null,
+                        possible: [grade?.possible, score?.possible].find((value) => typeof value == 'number') || null,
                     },
                 });
             }
@@ -303,4 +314,89 @@ export async function get_all_course_assignments(course_id: string, cookies: str
 
     // Return the assignments
     return results;
+}
+
+interface AdvancedAssignment {
+    id: string;
+    name: string;
+    description: string;
+    created_at: number;
+    updated_at: number;
+    attempts: {
+        id: string;
+        submission: {
+            id: null | string;
+            body: null | string;
+            size: null | number;
+        };
+        grade: {
+            score: null | number;
+            feedback: null | string;
+        };
+        created_at: number;
+    }[];
+}
+
+export async function get_detailed_assignment(
+    course_id: string,
+    assignment_id: string,
+    cookies: string
+): Promise<AdvancedAssignment | void> {
+    // De-construct the assignment ID into relevant components
+    const { content_id, grade_id } = deconstruct_assignment_id(assignment_id);
+
+    // Retrieve the content of the assignment
+    const content = await (
+        await api_request('v1.public', `/courses/${course_id}/contents/${content_id}`, {
+            redirect: 'error', // Don't follow redirects
+            headers: {
+                cookie: cookies,
+            },
+        })
+    ).json();
+
+    // Do not return anything, if we do not have view permissions
+    if (content.status === 403) return;
+
+    // Instantiate the assignment with basic properties
+    const assignment: AdvancedAssignment = {
+        id: assignment_id,
+        name: content.title,
+        description: content.body || content.body.displayText || content.body.rawText,
+        created_at: new Date(content.created).getTime(),
+        updated_at: new Date(content.modified).getTime(),
+        attempts: [],
+    };
+
+    // Retrieve the attempts of the assignment
+    const attempts = await (
+        await api_request('v2.public', `/courses/${course_id}/gradebook/columns/${grade_id}/attempts`, {
+            redirect: 'error', // Don't follow redirects
+            headers: {
+                cookie: cookies,
+            },
+        })
+    ).json();
+
+    // Determine if we received results
+    if (Array.isArray(attempts.results))
+        attempts.results.forEach((attempt: { [key: string]: any }) => {
+            // Destructure the attempt
+            const { id, status, created, feedback, displayGrade, attemptReceipt, studentSubmission } = attempt;
+            assignment.attempts.push({
+                id,
+                created_at: new Date(created).getTime(),
+                submission: {
+                    id: attemptReceipt?.receiptId || null,
+                    body: studentSubmission || null,
+                    size: attemptReceipt?.submissionTotalSize || null,
+                },
+                grade: {
+                    score: displayGrade?.score || null,
+                    feedback: feedback || null,
+                },
+            });
+        });
+
+    return assignment;
 }
