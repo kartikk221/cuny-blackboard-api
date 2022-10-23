@@ -1,4 +1,4 @@
-# CUNY Blackboard API
+# CUNY Blackboard API (WIP)
 
 Contact: [kartikk221](https://github.com/kartikk221) | URL: [https://github.com/kartikk221/cuny-blackboard-api](https://github.com/kartikk221/cuny-blackboard-api) | Licence: [MIT](https://mit-license.org/)
 
