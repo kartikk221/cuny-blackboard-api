@@ -5,20 +5,22 @@ specifiers:
   cross-fetch: ^3.1.5
   dotenv: ^16.0.2
   fetch-cookie: ^2.1.0
-  hyper-express: ^6.4.10
+  hyper-express: ^6.5.0
+  node-html-parser: ^6.1.1
   nodemon: ^2.0.20
-  typescript: ^4.8.3
+  typescript: ^4.8.4
 
 dependencies:
   cross-fetch: 3.1.5
   fetch-cookie: 2.1.0
-  hyper-express: 6.4.10
+  hyper-express: 6.5.0
+  node-html-parser: 6.1.1
 
 devDependencies:
   '@types/node': 18.7.23
   dotenv: 16.0.2
   nodemon: 2.0.20
-  typescript: 4.8.3
+  typescript: 4.8.4
 
 packages:
 
@@ -113,6 +115,10 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
+  /boolbase/1.0.0:
+    resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
+    dev: false
+
   /brace-expansion/1.1.11:
     resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
     dependencies:
@@ -171,6 +177,21 @@ packages:
       - encoding
     dev: false
 
+  /css-select/5.1.0:
+    resolution: {integrity: sha512-nwoRF1rvRRnnCqqY7updORDsuqKzqYJ28+oSMaJMMgOauh3fvwHqMS7EZpIPqK8GL+g9mKxF1vP/ZjSeNjEVHg==}
+    dependencies:
+      boolbase: 1.0.0
+      css-what: 6.1.0
+      domhandler: 5.0.3
+      domutils: 3.0.1
+      nth-check: 2.1.1
+    dev: false
+
+  /css-what/6.1.0:
+    resolution: {integrity: sha512-HTUrgRJ7r4dsZKU6GjmpfRK1O76h97Z8MfS1G0FozR+oF2kG6Vfe8JE6zwrkbxigziPHinCJ+gCPjA9EaBDtRw==}
+    engines: {node: '>= 6'}
+    dev: false
+
   /debug/3.2.7_supports-color@5.5.0:
     resolution: {integrity: sha512-CFjzYYAi4ThfiQvizrFQevTTXHtnCqWfe7x1AhgEscTz6ZbLbfoLRLPugTQyBth6f8ZERVUSyWHFD/7Wu4t1XQ==}
     peerDependencies:
@@ -183,10 +204,42 @@ packages:
       supports-color: 5.5.0
     dev: true
 
+  /dom-serializer/2.0.0:
+    resolution: {integrity: sha512-wIkAryiqt/nV5EQKqQpo3SToSOV9J0DnbJqwK7Wv/Trc92zIAYZ4FlMu+JPFW1DfGFt81ZTCGgDEabffXeLyJg==}
+    dependencies:
+      domelementtype: 2.3.0
+      domhandler: 5.0.3
+      entities: 4.4.0
+    dev: false
+
+  /domelementtype/2.3.0:
+    resolution: {integrity: sha512-OLETBj6w0OsagBwdXnPdN0cnMfF9opN69co+7ZrbfPGrdpPVNBUj02spi6B1N7wChLQiPn4CSH/zJvXw56gmHw==}
+    dev: false
+
+  /domhandler/5.0.3:
+    resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
+    engines: {node: '>= 4'}
+    dependencies:
+      domelementtype: 2.3.0
+    dev: false
+
+  /domutils/3.0.1:
+    resolution: {integrity: sha512-z08c1l761iKhDFtfXO04C7kTdPBLi41zwOZl00WS8b5eiaebNpY00HKbztwBq+e3vyqWNwWF3mP9YLUeqIrF+Q==}
+    dependencies:
+      dom-serializer: 2.0.0
+      domelementtype: 2.3.0
+      domhandler: 5.0.3
+    dev: false
+
   /dotenv/16.0.2:
     resolution: {integrity: sha512-JvpYKUmzQhYoIFgK2MOnF3bciIZoItIIoryihy0rIA+H4Jy0FmgyKYAHCTN98P5ybGSJcIFbh6QKeJdtZd1qhA==}
     engines: {node: '>=12'}
     dev: true
+
+  /entities/4.4.0:
+    resolution: {integrity: sha512-oYp7156SP8LkeGD0GF85ad1X9Ai79WtRsZ2gxJqtBuzH+98YUV6jkHEKlZkMbcrjJjIVJNIDP/3WL9wQkoPbWA==}
+    engines: {node: '>=0.12'}
+    dev: false
 
   /fetch-cookie/2.1.0:
     resolution: {integrity: sha512-39+cZRbWfbibmj22R2Jy6dmTbAWC+oqun1f1FzQaNurkPDUP4C38jpeZbiXCR88RKRVDp8UcDrbFXkNhN+NjYg==}
@@ -222,8 +275,13 @@ packages:
     engines: {node: '>=4'}
     dev: true
 
-  /hyper-express/6.4.10:
-    resolution: {integrity: sha512-lrYfWdkYWmmgQD/96GPd0DsRSxeeTOrvD0DphR+8qHCtyB377orfxZj/9ZxPmvT7/d4jY92EYR2tdVpTUOCD9A==}
+  /he/1.2.0:
+    resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
+    hasBin: true
+    dev: false
+
+  /hyper-express/6.5.0:
+    resolution: {integrity: sha512-OH/JpO1AWKu6niS8smj3yHgGv/a4jpELei3rKfmBHANspHHRZVpEv6jcI3+ME81Mo73Pz/pu9auK9pIHhmb68A==}
     dependencies:
       '@types/busboy': 0.3.2
       '@types/express': 4.17.14
@@ -235,7 +293,7 @@ packages:
       mime-types: 2.1.35
       range-parser: 1.2.1
       type-is: 1.6.18
-      uWebSockets.js: github.com/uNetworking/uWebSockets.js/806df48c9da86af7b3341f3e443388c7cd15c3de
+      uWebSockets.js: github.com/uNetworking/uWebSockets.js/873b0a4e9f55e66e1b6cac4767c476fbb3913eba
     dev: false
 
   /ignore-by-default/1.0.1:
@@ -310,6 +368,13 @@ packages:
       whatwg-url: 5.0.0
     dev: false
 
+  /node-html-parser/6.1.1:
+    resolution: {integrity: sha512-eYYblUeoMg0nR6cYGM4GRb1XncNa9FXEftuKAU1qyMIr6rXVtNyUKduvzZtkqFqSHVByq2lLjC7WO8tz7VDmnA==}
+    dependencies:
+      css-select: 5.1.0
+      he: 1.2.0
+    dev: false
+
   /nodemon/2.0.20:
     resolution: {integrity: sha512-Km2mWHKKY5GzRg6i1j5OxOHQtuvVsgskLfigG25yTtbyfRGn/GNvIbRyOf1PSCKJ2aT/58TiuUsuOU5UToVViw==}
     engines: {node: '>=8.10.0'}
@@ -338,6 +403,12 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
     dev: true
+
+  /nth-check/2.1.1:
+    resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
+    dependencies:
+      boolbase: 1.0.0
+    dev: false
 
   /picomatch/2.3.1:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
@@ -446,8 +517,8 @@ packages:
       mime-types: 2.1.35
     dev: false
 
-  /typescript/4.8.3:
-    resolution: {integrity: sha512-goMHfm00nWPa8UvR/CPSvykqf6dVV8x/dp0c5mFTMTIu0u0FlGWRioyy7Nn0PGAdHxpJZnuO/ut+PpQ8UiHAig==}
+  /typescript/4.8.4:
+    resolution: {integrity: sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==}
     engines: {node: '>=4.2.0'}
     hasBin: true
     dev: true
@@ -479,8 +550,8 @@ packages:
       webidl-conversions: 3.0.1
     dev: false
 
-  github.com/uNetworking/uWebSockets.js/806df48c9da86af7b3341f3e443388c7cd15c3de:
-    resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/806df48c9da86af7b3341f3e443388c7cd15c3de}
+  github.com/uNetworking/uWebSockets.js/873b0a4e9f55e66e1b6cac4767c476fbb3913eba:
+    resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/873b0a4e9f55e66e1b6cac4767c476fbb3913eba}
     name: uWebSockets.js
-    version: 20.10.0
+    version: 20.14.0
     dev: false
