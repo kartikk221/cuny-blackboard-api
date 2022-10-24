@@ -1,7 +1,6 @@
 import fetch from 'cross-fetch';
 import { with_retries } from '../utilities';
-import * as HTMLParser from 'node-html-parser';
-import { URL_BASE, USER_AGENT, ERROR_CODES, construct_assignment_id, deconstruct_assignment_id } from './shared';
+import { URL_BASE, ERROR_CODES, construct_assignment_id, deconstruct_assignment_id } from './shared';
 
 type api_version = 'v1.private' | 'v1.public' | 'v2.private' | 'v2.public';
 

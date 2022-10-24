@@ -9,7 +9,7 @@ import { cookies_handler_get } from './login/cookies/get_cookies';
 import { refresh_handler_post } from './login/refresh/post_refresh';
 
 // Import raw routes
-import { raw_handler_post } from './raw/post_raw';
+import { raw_handler_any } from './raw/post_raw';
 
 // Import me routes
 import { me_handler_get } from './me/get_me';
@@ -42,7 +42,8 @@ export async function register_routes(webserver: Server) {
     webserver.post('/login/refresh', use_require_token, refresh_handler_post);
 
     // Bind raw routes
-    webserver.post('/raw', use_require_token, raw_handler_post);
+    // Prefix with /learn/api to lock down the incoming requests to only the Blackboard Learn API
+    webserver.any('/raw/learn/api/*', use_require_token, raw_handler_any);
 
     // Bind me routes
     webserver.get('/me', use_require_token, me_handler_get);

@@ -1,41 +1,36 @@
 import { Request, Response } from 'hyper-express';
 import { api_request } from '../../modules/blackboard/methods';
-import { ERROR_CODES } from '../../modules/blackboard/shared';
 
-export async function raw_handler_post(request: Request, response: Response) {
-    // Retrieve the cookies
+export async function raw_handler_any(request: Request, response: Response) {
+    // Retrieve various properties from the request
+    const body = request._readable;
+    const method = request.method;
+    const path = request.path.replace('/raw', '');
     const cookies: string = request.locals.cookies;
 
-    // Retrieve the body as JSON of various properties
-    const { method = 'GET', path, headers, body } = await request.json();
+    // Parse custom headers with the raw- prefix
+    const headers: { [key: string]: string } = {};
+    for (const key in request.headers) {
+        if (key.startsWith('raw-')) headers[key.replace('raw-', '')] = request.headers[key];
+    }
 
-    // Ensure we have a valid endpoint
-    if (!path || typeof path !== 'string' || !path.startsWith('/learn')) throw new Error(ERROR_CODES.BAD_REQUEST);
-
-    // Ensure we have valid headers if they were provided
-    if (headers !== undefined && typeof headers !== 'object') throw new Error(ERROR_CODES.BAD_REQUEST);
+    // Inject the cookies into the headers
+    headers['Cookie'] = cookies;
 
     // Make the API request to Blackboard
-    // Do not perform any retries since this is a raw request
     const result = await api_request(
         '',
         path,
         {
+            // @ts-expect-error - The request body is a ReadableStream, but the cross-fetch API expects a web ReadableStream
+            body,
             method,
-            headers: {
-                cookie: cookies,
-                ...headers,
-            },
-            body: typeof body == 'string' ? body : JSON.stringify(body),
+            headers,
         },
-        0,
+        0, // No retries as this is a raw request
         0
     );
 
-    // Parse headers into an object
-    const response_headers = {} as { [key: string]: string };
-    result.headers.forEach((value, key) => (response_headers[key] = value));
-
-    // Send the result to the client with the correct status, headers, and body
-    response.send(await result.text());
+    // Respond with the result status code and body as text
+    response.status(result.status).send(await result.text());
 }
