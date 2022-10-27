@@ -115,8 +115,8 @@ interface Course {
         name: string;
     };
     enrolled_at: number;
-    last_accessed_at: number;
-    last_modified_at: number;
+    accessed_at: number;
+    updated_at: number;
 }
 
 /**
@@ -160,8 +160,8 @@ export async function get_all_user_courses(cookies: string): Promise<Course[]> {
                       }
                     : null,
                 enrolled_at: new Date(enrollmentDate).getTime(),
-                last_accessed_at: new Date(lastAccessDate).getTime(),
-                last_modified_at: new Date(modifiedDate).getTime(),
+                accessed_at: new Date(lastAccessDate).getTime(),
+                updated_at: new Date(modifiedDate).getTime(),
             });
         }
     }
@@ -174,8 +174,8 @@ interface Announcement {
     id: string;
     title: string;
     body: string;
-    created_at?: number;
-    modified_at?: number;
+    created_at: number;
+    updated_at: number;
     locations: {
         web?: string;
         file?: string;
@@ -214,7 +214,7 @@ export async function get_all_course_announcements(cookies: string, course_id: s
                 title,
                 body: body.displayText || body.rawText,
                 created_at: new Date(createdDate).getTime(),
-                modified_at: new Date(modifiedDate).getTime(),
+                updated_at: new Date(modifiedDate).getTime(),
                 locations: {
                     web: body.webLocation,
                     file: body.fileLocation,
