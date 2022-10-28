@@ -361,7 +361,7 @@ export async function get_detailed_assignment(
     const assignment: AdvancedAssignment = {
         id: assignment_id,
         name: content.title,
-        description: content.body || content.body.displayText || content.body.rawText,
+        description: content?.body || content?.body?.displayText || content?.body?.rawText || '',
         created_at: new Date(content.created).getTime(),
         updated_at: new Date(content.modified).getTime(),
         attempts: [],
